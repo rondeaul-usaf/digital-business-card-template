@@ -69,7 +69,7 @@ def main():
     if DRY:
         return
     branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-    has_up = git("rev-parse", "--abbrev-ref", "@{u}", check=False).returncode == 0
+    has_up = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", check=False).returncode == 0
     push = ["push"] if has_up else ["push", "-u", "origin", branch]
     r = git(*push, check=False)
     if r.returncode != 0 and has_up:
@@ -80,8 +80,11 @@ def main():
         sys.exit("Push failed. See the message above.")
     print("Done. Cloudflare will build and deploy automatically.")
     if "--all" in sys.argv:
+        tpl = os.path.join(ROOT, "scripts", "publish_template.py")
+        if not os.path.exists(tpl):
+            sys.exit("--all only applies to the original project (it publishes the shareable template). Nothing more to do.")
         print("\nNow updating the template repo...")
-        sys.exit(subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "publish_template.py")]).returncode)
+        sys.exit(subprocess.run([sys.executable, tpl]).returncode)
 
 
 if __name__ == "__main__":
