@@ -11,7 +11,7 @@ A free, self-hosted alternative to paid digital business card apps. You get, for
 You edit everything yourself in a password-protected editor. No monthly fee: it runs on the free tiers of
 Cloudflare and GitHub.
 
-**Start here: [SETUP.md](SETUP.md)** (step-by-step, about 30 minutes, no coding).
+**Start here: [Install-Guide.pdf](Install-Guide.pdf)**, a friendly illustrated walk-through with no commands to type, or the text version in [SETUP.md](SETUP.md). About 30 minutes, no coding.
 
 ## What is in this folder
 
@@ -21,6 +21,7 @@ Cloudflare and GitHub.
 | `public/` | The card page, the editor (`/admin/`) and the phone app (`/app/`) |
 | `wrangler.jsonc` | Cloudflare settings (contains no personal information) |
 | `scripts/push.py` | Optional helper that commits and pushes your changes |
+| `Install-Guide.pdf` | Friendly step-by-step install guide you can share |
 | `SETUP.md` | Full setup and privacy guide |
 
 ## Your information stays yours
@@ -28,6 +29,10 @@ Cloudflare and GitHub.
 This folder contains only code and made-up sample cards ("Alex Example"). Your real name, phone, email, photos and
 passcode are never stored in the code. They live in **your own** Cloudflare account. See "Keeping your information
 private" in [SETUP.md](SETUP.md).
+
+## Feedback
+
+Found a bug or have an idea? Use the **Feedback** button in the editor, or [open an issue](../../issues/new). Issues are public, so never include your passcode or personal details.
 
 ## License
 

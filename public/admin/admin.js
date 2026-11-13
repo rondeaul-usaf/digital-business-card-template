@@ -28,7 +28,18 @@ const current = () => S.cards.find((c) => c.slug === S.slug);
 const withIds = (c) => { c.separators = c.separators || []; c.collapse = { contact: normCollapse((c.collapse || {}).contact), links: normCollapse((c.collapse || {}).links) }; c.blockTitles = { contact: 'Contact', links: 'Links', ...(c.blockTitles || {}) }; c.sections = (c.sections || []).map((x, i) => { const n = normalizeSection(x); if (!n.id) n.id = 's' + i; const rid = () => Math.random().toString(36).slice(2, 8); n.items.forEach((it) => { if (!it.id) it.id = rid(); it.items = it.items || []; it.items.forEach((j) => { if (!j.id) j.id = rid(); }); }); return n; }); return c; };
 
 /* ---------- boot / login ---------- */
+let FEEDBACK = '';
+async function loadFeedback() {
+  try {
+    const r = await fetch('/admin/feedback.json', { cache: 'no-store' });
+    const u = r.ok ? (await r.json()).url : '';
+    if (/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/new$/.test(u || '')) {
+      FEEDBACK = u + '?title=' + encodeURIComponent('Feedback: ') + '&body=' + encodeURIComponent('**What happened, or what would help?**\n\n\n---\nThis page is public on GitHub. Please do not paste your passcode, phone number or email.');
+    }
+  } catch (e) { /* feedback link stays hidden */ }
+}
 async function boot() {
+  await loadFeedback();
   try { await api('/api/admin/me'); await load(); }
   catch (e) { if (e.status === 401) showLogin(); else app.innerHTML = `<p class="boot">${esc(e.message)}</p>`; }
 }
@@ -57,7 +68,7 @@ function render() {
   const tabs = `<label class="cardpick"><span>Card</span><select id="admcard" aria-label="Choose a card">${S.cards.map((c) => `<option value="${esc(c.slug)}" ${c.slug === S.slug ? 'selected' : ''}>${c.isDefault ? '★ ' : ''}${esc(c.label || c.slug)}</option>`).join('')}</select></label>`;
   app.innerHTML = `
   <header class="top"><div class="tabs">${tabs}</div>
-    <button class="btn sm" data-act="new">+ New</button><button class="btn sm ghost" data-act="logout">Sign out</button></header>
+    <button class="btn sm" data-act="new">+ New</button>${FEEDBACK ? `<a class="btn sm ghost" href="${esc(FEEDBACK)}" target="_blank" rel="noopener noreferrer" title="Opens a public GitHub page. Do not include your passcode or personal details.">Feedback</a>` : ''}<button class="btn sm ghost" data-act="logout">Sign out</button></header>
   <nav class="views">${['edit', 'preview', 'share'].map((v) => `<button data-act="view" data-v="${v}" class="${S.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</nav>
   ${d ? `<main data-view="${S.view}">
     <div class="pane-edit" id="form">${formHTML(d)}</div>

@@ -1,5 +1,7 @@
 # Setup guide
 
+Prefer a friendlier version with no commands? Use **Install-Guide.pdf** in this folder. It covers the same steps using only your web browser.
+
 You will end up with your own private copy running at an address like
 `https://digital-business-card.YOUR-NAME.workers.dev`. Plan on about 30 minutes. You do not need to write code.
 
@@ -118,3 +120,8 @@ Sharing this project with someone else:
 - **Phone app shows the old icon or layout:** remove the app and install it again.
 - **Free limits:** Cloudflare's free plan allows 100,000 requests a day and 1,000 storage writes a day, far more than a
   business card needs.
+
+## Feedback
+
+The editor has a **Feedback** button that opens a GitHub issue on the template page. Issues are public, so do not
+include your passcode, phone number or email.
