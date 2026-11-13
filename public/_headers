@@ -1,0 +1,7 @@
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+/app/*
+  X-Robots-Tag: noindex, nofollow
+/admin/*
+  X-Frame-Options: DENY
+  Cache-Control: no-store

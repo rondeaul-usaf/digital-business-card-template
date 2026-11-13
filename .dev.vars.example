@@ -1,0 +1,2 @@
+ADMIN_PASSCODE=test-pass
+SESSION_SECRET=local-test-secret-0123456789abcdef

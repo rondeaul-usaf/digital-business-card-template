@@ -1,0 +1,17 @@
+{
+  "name": "digital-business-card",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/c/*", "/img/*", "/file/*"]
+  },
+  // No "id" here on purpose: Cloudflare creates your own private storage (KV) the first time you deploy.
+  // If your build log says it could not, create a KV namespace in the dashboard and add: "id": "<its id>".
+  "kv_namespaces": [{ "binding": "CARDS" }],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+  // NEVER add ADMIN_PASSCODE or SESSION_SECRET here. Set them in the Cloudflare dashboard as type "Secret".
+}

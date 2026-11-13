@@ -1,0 +1,18 @@
+*{box-sizing:border-box}
+body{margin:0;background:#032D60;color:#fff;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px}
+h1{margin:0;font-size:20px}.edit{color:#90D0FE;text-decoration:none;font-weight:600}
+nav{display:flex;gap:8px;padding:0 14px 10px;overflow-x:auto}
+nav button{border:0;background:rgba(255,255,255,.14);color:#fff;padding:9px 16px;border-radius:999px;font:inherit;white-space:nowrap}
+nav button.on{background:#fff;color:#032D60;font-weight:700}
+main{padding:8px 18px 30px;text-align:center}
+.qrwrap{background:#fff;border-radius:22px;padding:14px;width:min(86vw,340px);margin:6px auto 14px}
+.qrwrap img{width:100%;display:block}
+.who{font-size:22px;font-weight:700;margin:0}.role{color:#b9d6f2;margin:2px 0 16px}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.btn{background:#0176D3;color:#fff;border:0;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;text-decoration:none}
+.btn.sec{background:transparent;border:1.5px solid #90D0FE;color:#90D0FE}
+.mute{color:#b9d6f2}.sw{margin-top:18px}.sw label{color:#b9d6f2;font-size:14px}
+nav{display:block;overflow:visible}
+.pick{display:flex;align-items:center;gap:10px}.pick span{color:#b9d6f2;font-size:14px}
+.pick select{flex:1;min-width:0;font:inherit;font-weight:600;color:#032D60;background:#fff;border:0;border-radius:12px;padding:11px 36px 11px 14px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23032D60' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
