@@ -79,7 +79,7 @@ function render() {
   const tabs = `<label class="cardpick"><span>Card</span><select id="admcard" aria-label="Choose a card">${S.cards.map((c) => `<option value="${esc(c.slug)}" ${c.slug === S.slug ? 'selected' : ''}>${c.isDefault ? '★ ' : ''}${esc(c.label || c.slug)}</option>`).join('')}</select></label>`;
   app.innerHTML = `
   <header class="top"><div class="tabs">${tabs}</div>
-    <button class="btn sm" data-act="new">+ New</button>${FEEDBACK ? `<a class="btn sm ghost" href="${esc(FEEDBACK)}" target="_blank" rel="noopener noreferrer" title="Opens a public GitHub page. Do not include your passcode or personal details.">Feedback</a>` : ''}<button class="btn sm ghost" data-act="logout">Sign out</button></header>
+    <button class="btn sm" data-act="new">+ New</button>${d ? '<button class="btn sm ghost" data-act="dupcard" title="Make a copy of this card">Duplicate</button>' : ''}${FEEDBACK ? `<a class="btn sm ghost" href="${esc(FEEDBACK)}" target="_blank" rel="noopener noreferrer" title="Opens a public GitHub page. Do not include your passcode or personal details.">Feedback</a>` : ''}<button class="btn sm ghost" data-act="logout">Sign out</button></header>
   <nav class="views">${['edit', 'preview', 'share', 'activity'].map((v) => `<button data-act="view" data-v="${v}" class="${S.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</nav>
   ${d ? `<main data-view="${S.view}">
     <div class="pane-edit" id="form">${formHTML(d)}</div>
@@ -436,6 +436,7 @@ async function onClick(e) {
     if (a === 'logout') { await api('/api/logout', { method: 'POST' }); S.slug = null; return showLogin(); }
     if (a === 'save') return save();
     if (a === 'new') return newCard();
+    if (a === 'dupcard') return dupCard();
     if (a === 'delete') return del();
     if (a === 'add') { const arr = getPath(S.draft, el.dataset.arr); const nw = defaults[el.dataset.arr.split('.').pop()](); arr.push(nw); if (el.dataset.arr === 'sections') S.open.add(nw.id); dirty(); return keepScroll(render); }
     if (a === 'addfield') { const sel = el.parentElement.querySelector('.fsel'); getPath(S.draft, el.dataset.arr).push(newField(sel.value)); dirty(); return keepScroll(render); }
@@ -518,6 +519,17 @@ async function newCard() {
   if (!slug) return;
   const copyFrom = S.slug && confirm('Start from a copy of the current card?\nOK = copy, Cancel = blank') ? S.slug : undefined;
   try { const c = await api('/api/admin/cards', { method: 'POST', json: { slug, label, copyFrom } }); await load(c.slug); toast('Card created'); }
+  catch (e) { toast(e.message); }
+}
+async function dupCard() {
+  if (!S.slug) return;
+  if (S.dirty) { if (!confirm('You have unsaved changes. Save them first, then make the copy?')) return; await save(); if (S.dirty) return; }
+  const src = current();
+  const label = prompt('Name for the copy:', `${src.label || src.slug} copy`); if (!label) return;
+  const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 28) || 'card';
+  let slug = base, n = 2;
+  while (S.cards.some((c) => c.slug === slug)) slug = `${base}-${n++}`;
+  try { const c = await api('/api/admin/cards', { method: 'POST', json: { slug, label, copyFrom: S.slug } }); await load(c.slug); toast(`Copied to "${label}". It has its own address and no secret link yet.`); }
   catch (e) { toast(e.message); }
 }
 async function del() {

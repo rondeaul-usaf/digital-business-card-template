@@ -9,7 +9,8 @@ export async function onRequestPost({ request, env }) {
   const slug = String(b.slug || '').toLowerCase();
   if (!SLUG_RE.test(slug)) return Response.json({ error: 'Slug must be 2-32 chars: a-z, 0-9, dashes' }, { status: 400 });
   if (await getCard(env, slug)) return Response.json({ error: 'That slug already exists' }, { status: 409 });
-  const card = { ...EMPTY_CARD(), ...(b.copyFrom ? (await getCard(env, b.copyFrom)) || {} : {}), label: b.label || slug, isDefault: false };
+  // A copy never inherits the original's secret link (each card gets its own) or its default status.
+  const card = { ...EMPTY_CARD(), ...(b.copyFrom ? (await getCard(env, b.copyFrom)) || {} : {}), label: b.label || slug, isDefault: false, secretKey: '' };
   await putCard(env, slug, card);
   return Response.json(await getCard(env, slug), { status: 201 });
 }
