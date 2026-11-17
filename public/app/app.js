@@ -19,11 +19,15 @@
       '<p class="who">' + esc(c.name) + '</p><p class="role">' + esc([c.title, c.company].filter(Boolean).join(' · ')) + '</p>' +
       (c.expired ? '<p class="mute">This card has expired. Only you can open it.</p>' : '') +
       '<div class="btns"><button class="btn" id="share">Share link</button><button class="btn sec" id="copy">Copy link</button><a class="btn sec" href="' + esc(url) + '">Open</a></div>' +
-      '<div class="btns" style="margin-top:10px"><button class="btn sec" id="shareqr">Share QR image</button><button class="btn sec" id="saveqr">Save QR image</button></div><p class="mute" id="qrmsg" role="status"></p>' +
+      '<div class="btns" style="margin-top:10px"><button class="btn sec" id="shareqr">Share QR image</button><button class="btn sec" id="saveqr">Save QR image</button></div>' +
+      '<div class="btns" style="margin-top:10px"><a class="btn sec" id="openbr" target="_blank" rel="noopener" href="' + esc(url) + '">Open in browser</a><button class="btn sec" id="copypriv">Copy for private window</button></div><p class="mute" id="qrmsg" role="status"></p>' +
       '<div class="sw"><label><input type="checkbox" id="co"' + (contactOnly ? ' checked' : '') + '> Contact-only QR (adds me directly, no web page)</label></div>';
     document.getElementById('share').onclick = function () {
       if (navigator.share) navigator.share({ title: c.name, url: shareUrl }).catch(function () {});
       else if (navigator.clipboard) navigator.clipboard.writeText(shareUrl);
+    };
+    document.getElementById('copypriv').onclick = function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { msg('Link copied. Open a private or incognito tab in your browser and paste it to see the card as a visitor.'); }).catch(function () { msg('Could not copy. Use Open in browser instead.'); });
     };
     function msg(t) { var m = document.getElementById('qrmsg'); if (m) m.textContent = t; }
     document.getElementById('shareqr').onclick = function () { window.QRDL.share(qrMain, fname, c.name, shareUrl).catch(function (e) { msg(e.message); }); };

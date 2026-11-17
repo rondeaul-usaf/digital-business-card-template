@@ -1,4 +1,4 @@
-var V = 'cards-v3';
+var V = 'cards-v4';
 var SHELL = ['/app/', '/app/app.js', '/qrdl.js', '/app/app.css', '/app/manifest.webmanifest', '/app/icon-192.png', '/app/apple-touch-icon.png'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(V).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); })); });
 self.addEventListener('activate', function (e) {
