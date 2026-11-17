@@ -12,6 +12,9 @@ import * as me from './functions/api/admin/me.js';
 import * as cards from './functions/api/admin/cards/index.js';
 import * as oneCard from './functions/api/admin/cards/[slug].js';
 import * as upload from './functions/api/admin/upload.js';
+import * as exchange from './functions/api/exchange.js';
+import * as stats from './functions/api/admin/stats.js';
+import * as exchanges from './functions/api/admin/exchanges.js';
 
 const M = { GET: 'onRequestGet', POST: 'onRequestPost', PUT: 'onRequestPut', DELETE: 'onRequestDelete' };
 
@@ -23,6 +26,9 @@ function route(path) {
   if (path === '/api/admin/me') return [me, {}];
   if (path === '/api/admin/cards') return [cards, {}];
   if (path === '/api/admin/upload') return [upload, {}];
+  if (path === '/api/exchange') return [exchange, {}];
+  if (path === '/api/admin/stats') return [stats, {}];
+  if (path === '/api/admin/exchanges') return [exchanges, {}];
   if ((m = /^\/api\/admin\/cards\/([^/]+)$/.exec(path))) return [oneCard, { slug: m[1] }];
   if ((m = /^\/c\/([^/]+)\/?$/.exec(path))) return [cardPage, { slug: m[1] }];
   if ((m = /^\/c\/([^/]+)\/([^/]+)$/.exec(path))) return [cardFile, { slug: m[1], file: m[2] }];
@@ -32,12 +38,12 @@ function route(path) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const hit = route(new URL(request.url).pathname);
     if (!hit) return env.ASSETS.fetch(request);
     const [mod, params] = hit;
     const fn = mod[M[request.method === 'HEAD' ? 'GET' : request.method]];
-    const next = async () => (fn ? fn({ request, env, params }) : new Response('Method not allowed', { status: 405 }));
+    const next = async () => (fn ? fn({ request, env, params, waitUntil: (p) => ctx.waitUntil(p) }) : new Response('Method not allowed', { status: 405 }));
     try {
       return await middleware({ request, env, next });
     } catch (e) {

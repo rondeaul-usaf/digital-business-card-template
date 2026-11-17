@@ -1,6 +1,8 @@
 import { getCard } from '../../../lib/store.js';
 import { buildVcard } from '../../../lib/vcard.js';
 import { qrSvg } from '../../../lib/qr.js';
+import { gate } from '../../../lib/access.js';
+import { record, looksLikeBot, cleanSrc } from '../../../lib/stats.js';
 
 function b64(buf) {
   let s = ''; const u = new Uint8Array(buf);
@@ -8,13 +10,19 @@ function b64(buf) {
   return btoa(s);
 }
 
-export async function onRequestGet({ params, env, request }) {
+export async function onRequestGet({ params, env, request, waitUntil }) {
   const card = await getCard(env, params.slug);
-  if (!card || card.published === false) return new Response('Not found', { status: 404 });
-  const origin = new URL(request.url).origin;
+  const g = await gate(card, env, request);
+  if (g.res) return g.res;
+  const url = new URL(request.url);
+  const origin = url.origin;
   const cardUrl = `${origin}/c/${card.slug}`;
 
   if (params.file === 'contact.vcf') {
+    if (!g.owner && request.method === 'GET' && !looksLikeBot(request.headers.get('User-Agent'))) {
+      const p = record(env, card.slug, 's').catch(() => {});
+      if (waitUntil) waitUntil(p); else await p;
+    }
     let photo = '';
     const pid = card.photoVcard || card.photo;
     if (pid) {
@@ -28,10 +36,14 @@ export async function onRequestGet({ params, env, request }) {
   }
   if (params.file === 'qr.svg' || params.file === 'vcard-qr.svg') {
     const compact = params.file === 'vcard-qr.svg';
-    const text = compact ? buildVcard(card, { compact: true }) : cardUrl;
+    // The link QR carries ?src= so scans are counted separately (default "qr"); a secret link adds its key.
+    const q = new URLSearchParams();
+    if (card.secretKey) q.set('k', card.secretKey);
+    q.set('src', cleanSrc(url.searchParams.get('src')) || 'qr');
+    const text = compact ? buildVcard(card, { compact: true }) : `${cardUrl}?${q}`;
     const svg = qrSvg(text, { ecc: compact ? 'L' : 'M', fg: card.theme?.accent2 || '#000000' });
     if (!svg) return new Response('Too much data for a QR code. Hide some fields from the contact file.', { status: 413 });
-    return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=60' } });
+    return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': card.secretKey ? 'private, no-store' : 'public, max-age=60' } });
   }
   return new Response('Not found', { status: 404 });
 }

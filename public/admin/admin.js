@@ -2,7 +2,7 @@ import { renderCardHTML, EMPTY_CARD, BANNERS, ICON_KEYS, esc, layoutKeys, sectio
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
-const S = { cards: [], slug: null, draft: null, dirty: false, view: 'edit', savedAt: null, open: new Set(), itemClosed: new Set() };
+const S = { cards: [], slug: null, draft: null, dirty: false, view: 'edit', savedAt: null, open: new Set(), itemClosed: new Set(), act: null, trk: '' };
 let previewTimer;
 
 /* ---------- helpers ---------- */
@@ -25,7 +25,14 @@ function setPath(o, p, v) {
 const dirty = () => { S.dirty = true; updateSaveBar(); schedulePreview(); };
 const current = () => S.cards.find((c) => c.slug === S.slug);
 
-const withIds = (c) => { c.separators = c.separators || []; c.collapse = { contact: normCollapse((c.collapse || {}).contact), links: normCollapse((c.collapse || {}).links) }; c.blockTitles = { contact: 'Contact', links: 'Links', ...(c.blockTitles || {}) }; c.sections = (c.sections || []).map((x, i) => { const n = normalizeSection(x); if (!n.id) n.id = 's' + i; const rid = () => Math.random().toString(36).slice(2, 8); n.items.forEach((it) => { if (!it.id) it.id = rid(); it.items = it.items || []; it.items.forEach((j) => { if (!j.id) j.id = rid(); }); }); return n; }); return c; };
+const randKey = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+const cleanSrc = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
+const cardUrl = (d, src) => { const q = [d.secretKey ? 'k=' + d.secretKey : '', src ? 'src=' + src : ''].filter(Boolean).join('&'); return `${location.origin}/c/${d.slug}${q ? '?' + q : ''}`; };
+const vcfUrl = (d) => `${location.origin}/c/${d.slug}/contact.vcf${d.secretKey ? '?k=' + d.secretKey : ''}`;
+const qrPath = (d, src) => { const q = [d.secretKey ? 'k=' + d.secretKey : '', src ? 'src=' + src : ''].filter(Boolean).join('&'); return `/c/${d.slug}/qr.svg${q ? '?' + q : ''}`; };
+const localDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-CA') : '');
+const expired = (d) => !!d.expires && Date.parse(d.expires) < Date.now();
+const withIds = (c) => { c.listed = c.listed !== false; c.secretKey = c.secretKey || ''; c.expires = c.expires || ''; c.exchange = { ...EMPTY_CARD().exchange, ...(c.exchange || {}) }; c.separators = c.separators || []; c.collapse = { contact: normCollapse((c.collapse || {}).contact), links: normCollapse((c.collapse || {}).links) }; c.blockTitles = { contact: 'Contact', links: 'Links', ...(c.blockTitles || {}) }; c.sections = (c.sections || []).map((x, i) => { const n = normalizeSection(x); if (!n.id) n.id = 's' + i; const rid = () => Math.random().toString(36).slice(2, 8); n.items.forEach((it) => { if (!it.id) it.id = rid(); it.items = it.items || []; it.items.forEach((j) => { if (!j.id) j.id = rid(); }); }); return n; }); return c; };
 
 /* ---------- boot / login ---------- */
 let FEEDBACK = '';
@@ -69,14 +76,15 @@ function render() {
   app.innerHTML = `
   <header class="top"><div class="tabs">${tabs}</div>
     <button class="btn sm" data-act="new">+ New</button>${FEEDBACK ? `<a class="btn sm ghost" href="${esc(FEEDBACK)}" target="_blank" rel="noopener noreferrer" title="Opens a public GitHub page. Do not include your passcode or personal details.">Feedback</a>` : ''}<button class="btn sm ghost" data-act="logout">Sign out</button></header>
-  <nav class="views">${['edit', 'preview', 'share'].map((v) => `<button data-act="view" data-v="${v}" class="${S.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</nav>
+  <nav class="views">${['edit', 'preview', 'share', 'activity'].map((v) => `<button data-act="view" data-v="${v}" class="${S.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</nav>
   ${d ? `<main data-view="${S.view}">
     <div class="pane-edit" id="form">${formHTML(d)}</div>
     <div class="pane-prev"><iframe class="frame" id="frame" sandbox title="Card preview"></iframe></div>
     <div class="pane-share" id="share">${shareHTML(d)}</div>
+    <div class="pane-act" id="act">${actHTML(d)}</div>
   </main>
   <div class="savebar"><span class="st" id="st"></span><button class="btn" data-act="save" id="savebtn">Save</button></div>` : '<p class="boot">No cards yet. Tap “+ New”.</p>'}`;
-  if (d) { updatePreview(); updateSaveBar(); applyFs(); }
+  if (d) { updatePreview(); updateSaveBar(); applyFs(); if (!S.act || S.act.slug !== d.slug) loadActivity(); }
 }
 
 function f(label, path, val, extra = '', max = 0) {
@@ -209,6 +217,26 @@ function formHTML(d) {
     <label class="f">Short bio (optional)<span class="cnt">${d.bio.length}/600</span><textarea data-p="bio" maxlength="600">${esc(d.bio)}</textarea></label>
   </fieldset>
 
+  <fieldset><legend>Privacy &amp; access</legend>
+    <label class="chk"><input type="checkbox" data-p="listed" ${d.listed !== false ? 'checked' : ''}> Show this card in the phone app's list</label>
+    <p class="hint">Anyone who knows your address can open <b>/app/</b> and see the cards listed there. Turn this off for cards you only share privately. You still see it there while signed in to this editor.</p>
+    ${d.secretKey ? `<p><b>Secret link is on.</b> Only links that include the secret code open this card, and the plain address stops working.</p><p class="urlbox">${esc(cardUrl(d))}</p>
+      <div class="actions"><button class="btn sm sec" data-act="copy" data-t="${esc(cardUrl(d))}">Copy link</button><button class="btn sm sec" data-act="genkey">Make a new secret link</button><button class="btn sm sec" data-act="rmkey">Turn off</button></div>
+      <p class="hint">Save, then use the Share tab: its links and QR codes include the secret automatically.</p>`
+      : `<div class="actions"><button class="btn sm sec" data-act="genkey">Require a secret link</button></div>
+      <p class="hint">Adds a long random code to this card's link, so only people you give the full link or QR code to can open it. Good for a recruiter or one event.</p>`}
+    <label class="f">Card expires (optional)<input type="date" data-p="expires" data-expires value="${esc(localDate(d.expires))}"></label>
+    <p class="hint">${d.expires ? (expired(d) ? 'This card has <b>expired</b>. Visitors see a short "no longer available" page. You can still open and preview it.' : 'After the end of that day, visitors see a short "no longer available" page.') : 'Leave empty for a card that never expires.'}</p>
+  </fieldset>
+
+  <fieldset><legend>Contact exchange</legend>
+    <label class="chk"><input type="checkbox" data-p="exchange.enabled" data-rerender ${d.exchange.enabled ? 'checked' : ''}> Let visitors send me their details</label>
+    ${d.exchange.enabled ? `${f('Heading', 'exchange.title', d.exchange.title, '', 80)}
+      <label class="chk"><input type="checkbox" data-p="exchange.askPhone" ${d.exchange.askPhone ? 'checked' : ''}> Also ask for a phone number</label>
+      <label class="chk"><input type="checkbox" data-p="exchange.askNote" ${d.exchange.askNote !== false ? 'checked' : ''}> Include a note box</label>` : ''}
+    <p class="hint">Adds a short form to the bottom of the card. Details appear on the <b>Activity</b> tab, are kept only in your own Cloudflare storage, and are deleted automatically after 180 days. Only turn this on if you are comfortable holding other people's contact details.</p>
+  </fieldset>
+
   <fieldset><legend>Images</legend>
     <div class="imgrow">${imgThumb(d.photo)}<div><button class="btn sec sm" data-act="upload" data-kind="photo">Upload photo</button> ${d.photo ? '<button class="btn danger sm" data-act="clear" data-p="photo">Remove</button>' : ''}<p class="hint">Square-ish works best. Also used in your contact file.</p></div></div>
     <div class="imgrow">${imgThumb(d.logo, true)}<div><button class="btn sec sm" data-act="upload" data-kind="logo">Upload company logo</button> ${d.logo ? '<button class="btn danger sm" data-act="clear" data-p="logo">Remove</button>' : ''}<p class="hint">Without a logo the company name shows as text.</p></div></div>
@@ -285,25 +313,69 @@ function layoutHTML(d) {
 }
 
 function shareHTML(d) {
-  const url = `${location.origin}/c/${d.slug}`;
-  const snippet = `<p><a href="${url}">${esc(d.name)} – digital card</a> · <a href="${url}/contact.vcf">Save my contact</a></p>`;
+  const url = cardUrl(d), vcf = vcfUrl(d);
+  const snippet = `<p><a href="${esc(cardUrl(d, 'email'))}">${esc(d.name)} – digital card</a> · <a href="${esc(vcf)}">Save my contact</a></p>`;
+  const trk = cleanSrc(S.trk);
   return `<div class="share-box"><b>Share this card</b>
   ${S.dirty ? '<p class="hint">Unsaved changes. Save first so the shared card is up to date.</p>' : ''}
   ${d.published === false ? '<p class="hint" style="color:#c23934">This card is hidden. Set it to Published to share.</p>' : ''}
+  ${d.secretKey ? '<p class="hint">Secret link is on, so every link and QR below includes the secret code.</p>' : ''}
+  ${expired(d) ? '<p class="hint" style="color:#c23934">This card has expired, so visitors cannot open it.</p>' : ''}
   <p class="urlbox">${esc(url)}</p>
-  <img class="qr" src="/c/${esc(d.slug)}/qr.svg?t=${S.savedAt || 0}" alt="QR code" width="200" height="200">
+  <img class="qr" src="${esc(qrPath(d))}${qrPath(d).includes('?') ? '&' : '?'}t=${S.savedAt || 0}" alt="QR code" width="200" height="200">
   <div class="actions">
     <button class="btn sm" data-act="copy" data-t="${esc(url)}">Copy link</button>
-    <a class="btn sm sec" href="/c/${esc(d.slug)}" target="_blank" rel="noopener">Open card</a>
-    <a class="btn sm sec" href="/c/${esc(d.slug)}/qr.svg" download="${esc(d.slug)}-qr.svg">Download QR</a>
-    <a class="btn sm sec" href="/c/${esc(d.slug)}/contact.vcf" download>Download .vcf</a>
-    <a class="btn sm sec" href="/c/${esc(d.slug)}/vcard-qr.svg" target="_blank" rel="noopener">Contact-only QR</a>
+    <a class="btn sm sec" href="${esc(url)}" target="_blank" rel="noopener">Open card</a>
+    <a class="btn sm sec" href="${esc(qrPath(d))}" download="${esc(d.slug)}-qr.svg">Download QR (SVG)</a>
+    <button class="btn sm sec" data-act="dlpng" data-src="">Download QR (PNG)</button>
+    <a class="btn sm sec" href="${esc(vcf)}" download>Download .vcf</a>
+    <a class="btn sm sec" href="/c/${esc(d.slug)}/vcard-qr.svg${d.secretKey ? '?k=' + esc(d.secretKey) : ''}" target="_blank" rel="noopener">Contact-only QR</a>
     <a class="btn sm sec" href="mailto:?subject=${encodeURIComponent(d.name + ' – digital card')}&body=${encodeURIComponent('Here is my digital card, with a button to save my contact:\n' + url)}">Email it</a>
   </div>
+  <p class="hint">The PNG is large enough to print or drop into slides and video-call backgrounds.</p>
+  <b>Tracked links</b><p class="hint">Make a link or QR code for one place, such as your resume, LinkedIn or an event badge. The Activity tab shows how many people used each one.</p>
+  <div class="actions">${['linkedin', 'resume', 'email', 'event', 'nfc'].map((x) => `<button class="btn sm sec${trk === x ? ' on' : ''}" data-act="trkpick" data-v="${x}">${x}</button>`).join('')}</div>
+  <label class="f">Label (letters and numbers)<input id="trksrc" maxlength="20" placeholder="for example: resume" value="${esc(trk)}"></label>
+  <p class="urlbox" id="trkurl">${esc(cardUrl(d, trk || 'link'))}</p>
+  <div class="actions"><button class="btn sm" data-act="trkcopy">Copy tracked link</button><button class="btn sm sec" data-act="dlpng" data-fromtrk="1">Download its QR (PNG)</button></div>
   <b>Email snippet</b><p class="hint">Paste into an email or signature. Recipients tap “Save my contact”.</p>
   <textarea class="snip" readonly>${esc(snippet)}</textarea>
   <div class="actions"><button class="btn sm sec" data-act="copyrich">Copy as formatted link</button></div></div>`;
 }
+
+/* ---------- activity: counters + details people sent you ---------- */
+async function loadActivity() {
+  const slug = S.slug; if (!slug) return;
+  S.act = { slug, loading: true };
+  try {
+    const [stats, xc] = await Promise.all([api(`/api/admin/stats?slug=${encodeURIComponent(slug)}`), api(`/api/admin/exchanges?slug=${encodeURIComponent(slug)}`)]);
+    S.act = { slug, stats, xc };
+  } catch (e) { S.act = { slug, err: e.message || 'Could not load activity' }; }
+  const box = $('#act'); if (box && S.draft && S.draft.slug === slug) box.innerHTML = actHTML(S.draft);
+}
+function actHTML(d) {
+  const A = S.act;
+  if (!A || A.slug !== d.slug || A.loading) return '<div class="share-box"><b>Activity</b><p class="hint">Loading…</p></div>';
+  if (A.err) return `<div class="share-box"><b>Activity</b><p class="hint" style="color:#c23934">${esc(A.err)}</p><div class="actions"><button class="btn sm sec" data-act="actrefresh">Try again</button></div></div>`;
+  const { stats, xc } = A, max = Math.max(1, ...stats.days.map((x) => x.v));
+  const bars = stats.days.map((x) => `<i style="height:${Math.max(3, Math.round((x.v / max) * 100))}%" title="${esc(x.date)}: ${x.v} view${x.v === 1 ? '' : 's'}"></i>`).join('');
+  const label = { direct: 'Direct link', qr: 'QR code', share: 'Share button', other: 'Other' };
+  const src = stats.sources.map((x) => `<tr><td>${esc(label[x.name] || x.name)}</td><td>${x.v}</td></tr>`).join('');
+  const rows = xc.map((r) => `<div class="xcrow"><div><b>${esc(r.name)}</b>${r.email ? ` · <a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ''}${r.phone ? ` · ${esc(r.phone)}` : ''}<br><span class="hint">${esc(new Date(r.t).toLocaleString())}</span>${r.note ? `<br>${esc(r.note)}` : ''}</div><button class="btn sm sec" data-act="delxc" data-id="${esc(r.id)}">Delete</button></div>`).join('');
+  return `<div class="share-box"><b>Activity, last 30 days</b>
+  <div class="tiles"><div><span>${stats.totals.v}</span>card views</div><div><span>${stats.totals.s}</span>contacts saved</div><div><span>${stats.totals.x}</span>details received</div></div>
+  <div class="bars" aria-label="Views per day">${bars}</div>
+  ${src ? `<b>Where views came from</b><table class="srct">${src}</table><p class="hint">Sources cover this and last month. Use the Share tab to make tracked links for places like your resume or LinkedIn.</p>` : '<p class="hint">No views yet. Visits from you and from link-preview bots are not counted.</p>'}
+  <b>Details people sent you</b>
+  ${d.exchange.enabled ? '' : '<p class="hint">Contact exchange is off for this card. Turn it on under Contact exchange in the Edit tab.</p>'}
+  ${rows || '<p class="hint">Nothing received yet.</p>'}
+  <div class="actions">${xc.length ? '<button class="btn sm sec" data-act="csvxc">Download as CSV</button>' : ''}<button class="btn sm sec" data-act="actrefresh">Refresh</button></div>
+  <p class="hint">Counts are approximate, use UTC days, and store no IP addresses or browser details. Received details are deleted after 180 days.</p></div>`;
+}
+function downloadText(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+const csvCell = (v) => { v = String(v ?? ''); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
 
 /* ---------- preview / save bar ---------- */
 function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 250); }
@@ -320,7 +392,10 @@ addEventListener('beforeunload', (e) => { if (S.dirty) { e.preventDefault(); e.r
 
 /* ---------- events ---------- */
 function onField(e) {
-  const el = e.target; const p = el.dataset?.p; if (!p || !S.draft) return;
+  const el = e.target;
+  if (el.id === 'trksrc') { S.trk = cleanSrc(el.value); const u = $('#trkurl'); if (u && S.draft) u.textContent = cardUrl(S.draft, S.trk || 'link'); return; }
+  const p = el.dataset?.p; if (!p || !S.draft) return;
+  if (el.hasAttribute('data-expires')) { S.draft.expires = el.value ? new Date(el.value + 'T23:59:59').toISOString() : ''; dirty(); return keepScroll(render); }
   if (el.hasAttribute('data-banner')) {
     if (el.value === '__image') S.draft.banner.type = 'image'; else { S.draft.banner.type = 'preset'; S.draft.banner.preset = el.value; }
     return dirty();
@@ -383,13 +458,21 @@ async function onClick(e) {
     if (a === 'upload') return pickImage(el.dataset);
     if (a === 'copy') { await navigator.clipboard.writeText(el.dataset.t); return toast('Link copied'); }
     if (a === 'copyrich') return copyRich();
+    if (a === 'genkey') { if (S.draft.secretKey && !confirm('Make a new secret link? Links and QR codes you already shared will stop working.')) return; S.draft.secretKey = randKey(); dirty(); return keepScroll(render); }
+    if (a === 'rmkey') { if (!confirm('Turn off the secret link? Anyone who has the plain card address will be able to open it.')) return; S.draft.secretKey = ''; dirty(); return keepScroll(render); }
+    if (a === 'trkpick') { S.trk = el.dataset.v; return keepScroll(render); }
+    if (a === 'trkcopy') { await navigator.clipboard.writeText(cardUrl(S.draft, cleanSrc(S.trk) || 'link')); return toast('Tracked link copied'); }
+    if (a === 'dlpng') { const src = el.dataset.fromtrk ? cleanSrc(S.trk) || 'link' : ''; await window.QRDL.download(qrPath(S.draft, src), `${S.draft.slug}-${src || 'qr'}.png`, 1024); return toast('QR image saved'); }
+    if (a === 'actrefresh') { await loadActivity(); return; }
+    if (a === 'delxc') { if (!confirm('Delete these details? This cannot be undone.')) return; await api(`/api/admin/exchanges?slug=${encodeURIComponent(S.slug)}&id=${encodeURIComponent(el.dataset.id)}`, { method: 'DELETE' }); await loadActivity(); return toast('Deleted'); }
+    if (a === 'csvxc') { const rows = S.act?.xc || []; downloadText(`${S.slug}-contacts.csv`, ['Date,Name,Email,Phone,Note', ...rows.map((r) => [r.t, r.name, r.email, r.phone, r.note].map(csvCell).join(','))].join('\r\n'), 'text/csv'); return; }
   } catch (err) { toast(err.message || 'Something went wrong'); }
 }
 
 async function copyRich() {
-  const url = `${location.origin}/c/${S.draft.slug}`;
-  const html = `<p><a href="${url}">${esc(S.draft.name)} – digital card</a> · <a href="${url}/contact.vcf">Save my contact</a></p>`;
-  const plain = `${S.draft.name} – digital card: ${url}\nSave my contact: ${url}/contact.vcf`;
+  const url = cardUrl(S.draft, 'email'), vcf = vcfUrl(S.draft);
+  const html = `<p><a href="${esc(url)}">${esc(S.draft.name)} – digital card</a> · <a href="${esc(vcf)}">Save my contact</a></p>`;
+  const plain = `${S.draft.name} – digital card: ${url}\nSave my contact: ${vcf}`;
   try {
     await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]);
   } catch { await navigator.clipboard.writeText(plain); }

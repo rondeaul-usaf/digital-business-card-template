@@ -79,6 +79,23 @@ The editor needs a password and a signing key. Set them in Cloudflare, **never**
 - **iPhone (Safari):** open the same address, tap Share, then **Add to Home Screen**.
 - Anyone can scan the main QR with a normal camera. The **Contact-only QR** adds your contact directly, with no web page.
 
+## Sharing options
+
+- **Phone app:** Share link, Copy link, Share QR image and Save QR image buttons.
+- **Editor, Share tab:** QR download as SVG or PNG, the contact-only QR, an email snippet, and **tracked links**.
+  Type a label such as `resume` or `linkedin` to get a link and QR code for that place. A QR code made this way
+  opens `/c/<card>?src=<label>`, and the Activity tab counts each label separately.
+- **Editor, Edit tab, Privacy & access:** untick *Show this card in the phone app's list* for private cards,
+  turn on a **secret link** (a long random code added to the link), or set an **expiry date**.
+- **Editor, Edit tab, Contact exchange:** an optional form on the card where visitors send you their name and email.
+  Entries are kept in your Cloudflare storage for 180 days and appear on the Activity tab (delete or export as CSV).
+- **Editor, Activity tab:** views, saved contacts and sources for the last 30 days. Your own visits and
+  link-preview bots are not counted, and no IP addresses are stored. Counts are approximate.
+- **NFC sticker:** write a tracked link (label `nfc`) to a blank NTAG213 sticker with a free app such as NFC Tools.
+
+Note: the list the phone app reads (`/api/public`) can be opened by anyone who knows your address. Cards that are
+unlisted, have a secret link or have expired are left out of it.
+
 ## Updating later
 
 Edit your cards any time in `/admin/`. Those changes are instant and need no deploy. To change the code or this
