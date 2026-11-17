@@ -25,6 +25,10 @@ function setPath(o, p, v) {
 const dirty = () => { S.dirty = true; updateSaveBar(); schedulePreview(); };
 const current = () => S.cards.find((c) => c.slug === S.slug);
 
+// Which side panels are collapsed (desktop). Remembered in this browser only; harmless if storage is unavailable.
+let RAIL = new Set();
+try { RAIL = new Set(JSON.parse(localStorage.getItem('bc_rail') || '[]')); } catch (e) { /* default: all open */ }
+const railClosed = (k) => (RAIL.has(k) ? ' closed' : '');
 const randKey = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
 const cleanSrc = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
 const cardUrl = (d, src) => { const q = [d.secretKey ? 'k=' + d.secretKey : '', src ? 'src=' + src : ''].filter(Boolean).join('&'); return `${location.origin}/c/${d.slug}${q ? '?' + q : ''}`; };
@@ -79,9 +83,11 @@ function render() {
   <nav class="views">${['edit', 'preview', 'share', 'activity'].map((v) => `<button data-act="view" data-v="${v}" class="${S.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</nav>
   ${d ? `<main data-view="${S.view}">
     <div class="pane-edit" id="form">${formHTML(d)}</div>
-    <div class="pane-prev"><iframe class="frame" id="frame" sandbox title="Card preview"></iframe></div>
-    <div class="pane-share" id="share">${shareHTML(d)}</div>
-    <div class="pane-act" id="act">${actHTML(d)}</div>
+    <aside class="rail">
+      <section class="rp${railClosed('prev')}"><button class="rail-h" data-act="rail" data-k="prev" aria-expanded="${railClosed('prev') ? 'false' : 'true'}"><span>Preview</span><i aria-hidden="true"></i></button><div class="pane-prev"><iframe class="frame" id="frame" sandbox title="Card preview"></iframe></div></section>
+      <section class="rp${railClosed('share')}"><button class="rail-h" data-act="rail" data-k="share" aria-expanded="${railClosed('share') ? 'false' : 'true'}"><span>Share this card</span><i aria-hidden="true"></i></button><div class="pane-share" id="share">${shareHTML(d)}</div></section>
+      <section class="rp${railClosed('act')}"><button class="rail-h" data-act="rail" data-k="act" aria-expanded="${railClosed('act') ? 'false' : 'true'}"><span>Activity</span><i aria-hidden="true"></i></button><div class="pane-act" id="act">${actHTML(d)}</div></section>
+    </aside>
   </main>
   <div class="savebar"><span class="st" id="st"></span><button class="btn" data-act="save" id="savebtn">Save</button></div>` : '<p class="boot">No cards yet. Tap “+ New”.</p>'}`;
   if (d) { updatePreview(); updateSaveBar(); applyFs(); if (!S.act || S.act.slug !== d.slug) loadActivity(); }
@@ -316,7 +322,7 @@ function shareHTML(d) {
   const url = cardUrl(d), vcf = vcfUrl(d);
   const snippet = `<p><a href="${esc(cardUrl(d, 'email'))}">${esc(d.name)} – digital card</a> · <a href="${esc(vcf)}">Save my contact</a></p>`;
   const trk = cleanSrc(S.trk);
-  return `<div class="share-box"><b>Share this card</b>
+  return `<div class="share-box">
   ${S.dirty ? '<p class="hint">Unsaved changes. Save first so the shared card is up to date.</p>' : ''}
   ${d.published === false ? '<p class="hint" style="color:#c23934">This card is hidden. Set it to Published to share.</p>' : ''}
   ${d.secretKey ? '<p class="hint">Secret link is on, so every link and QR below includes the secret code.</p>' : ''}
@@ -457,6 +463,13 @@ async function onClick(e) {
     }
     if (a === 'upload') return pickImage(el.dataset);
     if (a === 'copy') { await navigator.clipboard.writeText(el.dataset.t); return toast('Link copied'); }
+    if (a === 'rail') {
+      const k = el.dataset.k, sec = el.closest('.rp');
+      RAIL.has(k) ? RAIL.delete(k) : RAIL.add(k);
+      sec.classList.toggle('closed', RAIL.has(k)); el.setAttribute('aria-expanded', RAIL.has(k) ? 'false' : 'true');
+      try { localStorage.setItem('bc_rail', JSON.stringify([...RAIL])); } catch (e) { /* ignore */ }
+      return;
+    }
     if (a === 'copyrich') return copyRich();
     if (a === 'genkey') { if (S.draft.secretKey && !confirm('Make a new secret link? Links and QR codes you already shared will stop working.')) return; S.draft.secretKey = randKey(); dirty(); return keepScroll(render); }
     if (a === 'rmkey') { if (!confirm('Turn off the secret link? Anyone who has the plain card address will be able to open it.')) return; S.draft.secretKey = ''; dirty(); return keepScroll(render); }
